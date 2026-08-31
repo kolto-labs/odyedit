@@ -218,8 +218,12 @@ impl App {
     }
 
     /// Write every file that has changes. Reports what could not be written.
+    ///
+    /// Only files that were actually edited are written. Asking for a name for
+    /// an untitled instruction file nobody touched — because the append table
+    /// beside it was the thing that changed — would be a dialog out of nowhere.
     fn save_everything(&mut self) {
-        if self.file.is_dirty() || self.file.path.is_none() {
+        if self.file.is_dirty() {
             self.save_file();
         }
         if self.append.as_ref().is_some_and(AppendFile::is_dirty) {
