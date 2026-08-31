@@ -23,16 +23,10 @@ default = ["gui"]
 gui = ["dep:eframe", "dep:egui", "dep:egui_extras", "dep:rfd"]
 
 [dependencies]
-# Pinned to a commit rather than a tag: kotor-diff-v0.2.1 does not resolve,
-# because kotor-diff still asked there for kotor-formats ^0.1.0 after
-# kotor-formats had gone to 0.2.0. Fixed on main, but the fix is in the root
-# manifest, which sits outside every release package, so no tag carries it yet.
-# Move to the next tag once one does.
-#
-# One ref for both either way: cargo resolves a git source once, so every
-# dependency taken from a repository has to name the same one.
-kotor-formats = { git = "https://github.com/arrenkaetris/kotor-formats", rev = "7ab00ee2a508923411912f92bda4141bc0551e1d" }
-kotor-diff = { git = "https://github.com/arrenkaetris/kotor-formats", rev = "7ab00ee2a508923411912f92bda4141bc0551e1d" }
+# One tag for both: cargo resolves a git source once, so every dependency taken
+# from a repository has to name the same ref.
+kotor-formats = { git = "https://github.com/arrenkaetris/kotor-formats", tag = "v0.3.0" }
+kotor-diff = { git = "https://github.com/arrenkaetris/kotor-formats", tag = "v0.3.0" }
 
 # To work against a local kotor-formats checkout instead, uncomment:
 # [patch."https://github.com/arrenkaetris/kotor-formats"]
