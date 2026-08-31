@@ -81,6 +81,8 @@ pub struct Generated {
     pub listing: Option<(&'static str, String)>,
     /// Dialog lines the newer table added, for the caller to append.
     pub appended: Vec<TlkEntry>,
+    /// How many literal values became `2DAMEMORY` references.
+    pub linked_tokens: usize,
 }
 
 /// What merging the result into a document did.
@@ -96,6 +98,8 @@ pub struct MergeReport {
     pub warnings: Vec<String>,
     /// How many dialog lines are waiting to be appended.
     pub dialog_lines: usize,
+    /// How many literal values became `2DAMEMORY` references.
+    pub linked_tokens: usize,
 }
 
 impl MergeReport {
@@ -117,6 +121,12 @@ impl MergeReport {
             format!("Added instructions across {sections} section(s).")
         };
 
+        if self.linked_tokens > 0 {
+            text.push_str(&format!(
+                " {} value(s) became 2DAMEMORY references.",
+                self.linked_tokens
+            ));
+        }
         if !self.warnings.is_empty() {
             text.push_str(&format!(" {} could not be expressed.", self.warnings.len()));
         }
@@ -152,40 +162,48 @@ pub fn generate(base_path: &str, modified_path: &str) -> Result<Generated, Strin
             let base = load(base_path, TwoDaFile::load)?;
             let modified = load(modified_path, TwoDaFile::load)?;
             changes.add_twoda(&name, &base, &modified);
+            let linked = changes.link_tokens();
             Ok(Generated {
                 changes,
                 listing: Some((TWODA_LIST, name)),
                 appended: Vec::new(),
+                linked_tokens: linked,
             })
         }
         "ssf" => {
             let base = load(base_path, SsfFile::load)?;
             let modified = load(modified_path, SsfFile::load)?;
             changes.add_ssf(&name, &base, &modified);
+            let linked = changes.link_tokens();
             Ok(Generated {
                 changes,
                 listing: Some((SSF_LIST, name)),
                 appended: Vec::new(),
+                linked_tokens: linked,
             })
         }
         "tlk" => {
             let base = load(base_path, TlkFile::load)?;
             let modified = load(modified_path, TlkFile::load)?;
             let appended = changes.add_tlk(&base, &modified);
+            let linked = changes.link_tokens();
             Ok(Generated {
                 changes,
                 listing: None,
                 appended,
+                linked_tokens: linked,
             })
         }
         _ => {
             let base = load(base_path, GffFile::load)?;
             let modified = load(modified_path, GffFile::load)?;
             changes.add_gff(&name, &base, &modified);
+            let linked = changes.link_tokens();
             Ok(Generated {
                 changes,
                 listing: Some((GFF_LIST, name)),
                 appended: Vec::new(),
+                linked_tokens: linked,
             })
         }
     }
@@ -208,6 +226,7 @@ pub fn merge_into(ini: &mut IniFile, generated: &Generated) -> MergeReport {
     let mut report = MergeReport {
         warnings: generated.changes.warnings().to_vec(),
         dialog_lines: generated.appended.len(),
+        linked_tokens: generated.linked_tokens,
         ..MergeReport::default()
     };
 
@@ -324,10 +343,12 @@ mod tests {
     fn generated_for(base: &TwoDaFile, modified: &TwoDaFile) -> Generated {
         let mut changes = ChangesIni::new();
         changes.add_twoda("spells.2da", base, modified);
+        let linked = changes.link_tokens();
         Generated {
             changes,
             listing: Some((TWODA_LIST, "spells.2da".to_string())),
             appended: Vec::new(),
+            linked_tokens: linked,
         }
     }
 
@@ -504,10 +525,12 @@ mod tests {
 
         let mut changes = ChangesIni::new();
         let appended = changes.add_tlk(&base, &modified);
+        let linked = changes.link_tokens();
         let generated = Generated {
             changes,
             listing: None,
             appended,
+            linked_tokens: linked,
         };
 
         let mut ini = IniFile::new();
@@ -517,6 +540,27 @@ mod tests {
         assert!(!report.is_empty());
         assert!(report.summary().contains("dialog line"));
         assert_eq!(generated.appended[0].text, "two");
+    }
+
+    #[test]
+    fn a_linked_token_count_reaches_the_report_and_the_summary() {
+        // The generator's token pass turns a literal that matches an index the
+        // comparison just created into a 2DAMEMORY reference. Whatever it
+        // linked has to be visible, or the operator cannot tell a generated
+        // reference from one they wrote.
+        let report = MergeReport {
+            added_sections: vec!["spells.2da".to_string()],
+            linked_tokens: 2,
+            ..MergeReport::default()
+        };
+        assert!(report.summary().contains("2 value(s) became 2DAMEMORY"));
+
+        // And nothing is said when the pass linked nothing.
+        let quiet = MergeReport {
+            added_sections: vec!["spells.2da".to_string()],
+            ..MergeReport::default()
+        };
+        assert!(!quiet.summary().contains("2DAMEMORY"));
     }
 
     #[test]

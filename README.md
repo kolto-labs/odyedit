@@ -47,6 +47,11 @@ are then incomplete in a way nothing downstream detects.
 Comparing two dialog tables is different: the new lines go into the mod's
 `append.tlk` and each gets a `StrRef` token, rather than becoming a section.
 
+Where a value in one file matches a row the comparison itself created in
+another, it is written as a `2DAMEMORY` reference rather than the literal
+number — the number is only correct until something else installs first. The
+status line says how many were linked that way.
+
 ## Saving does not reformat
 
 Open a file, save it, and you get the same bytes back. Comments, blank lines,
