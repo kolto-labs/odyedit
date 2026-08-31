@@ -349,6 +349,93 @@ impl App {
         }
     }
 
+    /// Work out instructions by comparing a file before and after an edit.
+    ///
+    /// The two files are asked for in that order, because getting them the wrong
+    /// way round produces instructions that undo the mod rather than apply it,
+    /// and nothing downstream can tell.
+    fn compare_files(&mut self) {
+        let folder = self.file.folder();
+
+        let Some(base) = pick_any_file("Choose the original file", folder.clone()) else {
+            self.say("No file chosen. Nothing was compared.");
+            return;
+        };
+        let Some(modified) = pick_any_file("Choose the edited file", folder) else {
+            self.say("No file chosen. Nothing was compared.");
+            return;
+        };
+
+        let generated = match crate::model::compare::generate(&base, &modified) {
+            Ok(generated) => generated,
+            Err(error) => {
+                self.complain(format!("Could not compare those files: {error}"));
+                return;
+            }
+        };
+
+        let report = crate::model::compare::merge_into(&mut self.file.ini, &generated);
+
+        // Dialog lines are not instructions: they go into the mod's own append
+        // table, and each one needs a token pointing at it.
+        if !generated.appended.is_empty() {
+            if let Err(error) = self.absorb_dialog_lines(&generated.appended) {
+                self.complain(error);
+                return;
+            }
+        }
+
+        if report.is_empty() {
+            self.say(report.summary());
+            return;
+        }
+
+        self.touch();
+        self.reload_from_file();
+
+        let mut message = report.summary();
+        for (from, to) in &report.renamed {
+            message.push_str(&format!(
+                " [{from}] was already taken, so it went in as [{to}]."
+            ));
+        }
+        self.say(message);
+
+        // Anything the format cannot express has to be said out loud: the
+        // instructions are now incomplete in a way nothing downstream detects.
+        if !report.warnings.is_empty() {
+            let mut text =
+                String::from("The comparison found changes no instruction can express:\n\n");
+            for warning in &report.warnings {
+                text.push_str(&format!("  \u{2022} {warning}\n"));
+            }
+            text.push_str("\nEverything else was added.");
+            self.dialog = Some(Dialog::Problem(text));
+        }
+    }
+
+    /// Add compared dialog lines to the append table and give each one a token.
+    fn absorb_dialog_lines(
+        &mut self,
+        lines: &[kotor_formats::tlk::TlkEntry],
+    ) -> Result<(), String> {
+        if self.append.is_none() {
+            self.append = Some(AppendFile::new());
+        }
+        let append = self.append.as_mut().expect("just created");
+
+        let mut tokens = crate::model::tlk::read(&self.file.ini);
+        for line in lines {
+            let index = append
+                .append(&line.text, &line.sound_name())
+                .map_err(|error| format!("Could not add a dialog line: {error}"))?;
+            crate::model::tlk::add_mapping(&mut tokens, index);
+        }
+        crate::model::tlk::write(&mut self.file.ini, &tokens);
+
+        Ok(())
+    }
+
     /// Warn about unsaved changes. True when the caller should stop and wait.
     fn guard(&mut self, action: PendingAction) -> bool {
         if !self.anything_unsaved() {
@@ -426,6 +513,19 @@ impl App {
                     }
                 });
 
+                ui.menu_button("Tools", |ui| {
+                    if ui
+                        .button("Compare two files")
+                        .on_hover_text(
+                            "Works out the instructions that turn one file into another.",
+                        )
+                        .clicked()
+                    {
+                        action = Some(MenuAction::Compare);
+                        ui.close();
+                    }
+                });
+
                 ui.menu_button("Help", |ui| {
                     if ui.button(format!("About {APP_NAME}")).clicked() {
                         action = Some(MenuAction::About);
@@ -440,6 +540,7 @@ impl App {
             Some(MenuAction::Open) => self.open_file(),
             Some(MenuAction::Save) => self.save_file(),
             Some(MenuAction::SaveAs) => self.save_file_as(),
+            Some(MenuAction::Compare) => self.compare_files(),
             Some(MenuAction::About) => self.dialog = Some(Dialog::About),
             Some(MenuAction::Quit) if !self.guard(PendingAction::Quit) => {
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
@@ -640,6 +741,8 @@ enum MenuAction {
     Save,
     /// Save the file under a new name.
     SaveAs,
+    /// Work out instructions by comparing two files.
+    Compare,
     /// Show what the program is.
     About,
     /// Close the window.

@@ -25,6 +25,7 @@ gui = ["dep:eframe", "dep:egui", "dep:egui_extras", "dep:rfd"]
 # Path dep while the trees sit side by side. Release builds pin a git tag:
 # kotor-formats = { git = "https://github.com/arrenkaetris/kotor-formats", tag = "v0.1.0" }
 kotor-formats = { path = "../kotor-formats/crates/kotor-formats" }
+kotor-diff = { path = "../kotor-formats/crates/kotor-diff" }
 
 eframe = { version = "0.32", optional = true, default-features = false, features = [
     "glow",

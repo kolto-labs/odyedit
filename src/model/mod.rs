@@ -12,6 +12,7 @@
 //! list names files, and most of them give every named file a section of its own
 //! holding the changes to make to it.
 
+pub mod compare;
 pub mod gff;
 pub mod install;
 pub mod namespace;
