@@ -177,6 +177,11 @@ impl App {
             .unwrap_or_default();
     }
 
+    /// Whether the open file has changes not yet on disk.
+    pub fn is_dirty(&self) -> bool {
+        self.file.is_dirty()
+    }
+
     /// Note that the document changed.
     fn touch(&mut self) {
         self.file.touch();

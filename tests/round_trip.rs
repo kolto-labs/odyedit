@@ -230,3 +230,22 @@ fn comments_survive_an_edit_elsewhere() {
     assert!(out.contains("WindowCaption=Renamed"));
     assert!(out.contains("Table0=spells.2da"));
 }
+
+#[test]
+fn the_editor_opens_a_real_file_without_falling_over() {
+    // Constructing the window's state is where every panel's buffer is filled
+    // from the document. A file that makes one of them panic would take the
+    // whole program down on open, which no round-trip check would catch.
+    let dir = std::env::temp_dir().join("odyedit-open-test");
+    std::fs::create_dir_all(&dir).unwrap();
+
+    for (index, raw) in CORPUS.iter().enumerate() {
+        let path = dir.join(format!("changes{index}.ini"));
+        std::fs::write(&path, raw).unwrap();
+        let app = odyedit::ui::App::with_file(path.to_str().unwrap());
+        // The file opened, so it is the one the editor is holding.
+        assert!(!app.is_dirty(), "file {index} looked edited on open");
+    }
+
+    std::fs::remove_dir_all(&dir).ok();
+}
