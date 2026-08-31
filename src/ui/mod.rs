@@ -40,11 +40,12 @@ pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 enum Dialog {
     /// Explains what the program is.
     About,
-    /// Warns that the open file has changes, and asks what to do.
+    /// Warns that something has changes, and asks what to do.
     ///
     /// The action waiting on the answer is carried along so it can run if the
-    /// operator decides to go ahead.
-    Unsaved(PendingAction),
+    /// operator decides to go ahead. The second field says why the question is
+    /// being asked again, when it is.
+    Unsaved(PendingAction, Option<String>),
     /// Reports something that went wrong.
     Problem(String),
 }
@@ -269,7 +270,16 @@ impl App {
         if self.guard(PendingAction::Open) {
             return;
         }
+        self.choose_and_open();
+    }
+
+    /// Ask for a file and open it, without warning about unsaved changes.
+    ///
+    /// Used once the warning has already been answered. A dismissed dialog
+    /// leaves everything exactly as it was.
+    fn choose_and_open(&mut self) {
         let Some(path) = pick_file("Open instruction file", &["ini"], self.file.folder()) else {
+            self.say("No file chosen. Nothing was opened.");
             return;
         };
         self.open_path(&path);
@@ -340,25 +350,43 @@ impl App {
         if !self.anything_unsaved() {
             return false;
         }
-        self.dialog = Some(Dialog::Unsaved(action));
+        self.dialog = Some(Dialog::Unsaved(action, None));
         true
     }
 
     /// Carry out what an unsaved-changes warning was holding up.
     fn resume(&mut self, action: PendingAction, ctx: &egui::Context) {
-        // Everything is being abandoned either way, so the warning must not fire
-        // a second time for the same action.
-        self.file = ChangesFile::new();
-        self.append = None;
-        self.namespaces = NamespaceFile::new();
         match action {
             PendingAction::New => {
+                // A new file replaces all three straight away, which is what was
+                // asked for.
+                self.file = ChangesFile::new();
+                self.append = None;
+                self.namespaces = NamespaceFile::new();
                 self.reload_from_file();
                 self.say("Started a new file.");
             }
-            PendingAction::Open => self.open_file(),
-            PendingAction::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            PendingAction::Open => {
+                // Nothing is thrown away until there is a replacement to put in
+                // its place. Clearing first and then having the file dialog
+                // dismissed would leave the window holding nothing, with the
+                // document that was open gone from memory.
+                self.choose_and_open();
+            }
+            PendingAction::Quit => {
+                // The close request is checked again on the way out, so the
+                // flags have to come down or the warning fires forever.
+                self.discard_changes();
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
         }
+    }
+
+    /// Give up on every unsaved change without touching what is on screen.
+    fn discard_changes(&mut self) {
+        self.file = ChangesFile::new();
+        self.append = None;
+        self.namespaces = NamespaceFile::new();
     }
 
     // -- drawing ---------------------------------------------------------
@@ -517,11 +545,11 @@ impl App {
                     self.dialog = Some(Dialog::Problem(message));
                 } else if let Some(action) = self.pending.take() {
                     // Something was waiting on a save that did not happen.
-                    self.dialog = Some(Dialog::Unsaved(action));
+                    self.dialog = Some(Dialog::Unsaved(action, None));
                 }
             }
 
-            Dialog::Unsaved(action) => {
+            Dialog::Unsaved(action, note) => {
                 let unsaved = self.unsaved_names().join(", ");
                 let mut choice: Option<UnsavedChoice> = None;
                 egui::Window::new("Save your changes?")
@@ -529,6 +557,10 @@ impl App {
                     .resizable(false)
                     .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                     .show(ctx, |ui| {
+                        if let Some(note) = &note {
+                            ui.label(note);
+                            ui.add_space(4.0);
+                        }
                         ui.label(format!("{unsaved} is not on disk yet."));
                         ui.add_space(8.0);
                         ui.horizontal(|ui| {
@@ -548,17 +580,26 @@ impl App {
                     Some(UnsavedChoice::Save) => {
                         self.save_everything();
                         if self.anything_unsaved() {
-                            // The save failed or was called off. Going ahead now
-                            // would lose exactly what was asked to be kept, so
-                            // the warning stays — but behind whatever the failure
-                            // put on screen, or the operator sees the same
-                            // question again with no idea why.
+                            // Going ahead now would lose exactly what was asked
+                            // to be kept, so the warning stays. It must say why,
+                            // or the same question comes back with no visible
+                            // cause — which is what happens when the operator
+                            // dismisses the file dialog rather than choosing a
+                            // name, since that raises no error of its own.
                             match self.dialog.take() {
                                 Some(problem) => {
                                     self.pending = Some(action);
                                     self.dialog = Some(problem);
                                 }
-                                None => self.dialog = Some(Dialog::Unsaved(action)),
+                                None => {
+                                    self.dialog = Some(Dialog::Unsaved(
+                                        action,
+                                        Some(
+                                            "Nothing was written — no filename was chosen."
+                                                .to_string(),
+                                        ),
+                                    ))
+                                }
                             }
                         } else {
                             self.resume(action, ctx);
@@ -566,7 +607,7 @@ impl App {
                     }
                     Some(UnsavedChoice::Discard) => self.resume(action, ctx),
                     Some(UnsavedChoice::Cancel) => {}
-                    None => self.dialog = Some(Dialog::Unsaved(action)),
+                    None => self.dialog = Some(Dialog::Unsaved(action, note)),
                 }
             }
         }
