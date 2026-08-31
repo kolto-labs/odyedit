@@ -28,6 +28,25 @@ Dialog strings are edited together with the `append.tlk` they point into,
 because editing one without the other produces a mod that installs and then
 shows blank text.
 
+## Working out instructions by comparison
+
+**Tools → Compare two files** asks for a file before an edit and after it, and
+writes the instructions that turn one into the other. An author who has already
+made the change by hand has the answer on disk; this reads it rather than asking
+them to type it out again.
+
+The generated sections are merged into the open document through the same writer
+the panels use, so the file keeps its comments and its spacing. A section whose
+name is already taken is renamed and the reference to it follows. A file the
+document already patches is not listed twice.
+
+Some differences have no instruction — a deleted row, a deleted field, a shorter
+dialog table. Those are reported rather than dropped, because the instructions
+are then incomplete in a way nothing downstream detects.
+
+Comparing two dialog tables is different: the new lines go into the mod's
+`append.tlk` and each gets a `StrRef` token, rather than becoming a section.
+
 ## Saving does not reformat
 
 Open a file, save it, and you get the same bytes back. Comments, blank lines,
@@ -62,6 +81,9 @@ odyedit path/to/changes.ini
 
 - [`kotor-formats`](https://github.com/arrenkaetris/kotor-formats) for the game
   file formats — GFF, 2DA, TLK, SSF — and for byte-exact Latin-1 text.
+- `kotor-diff`, from the same repository, for the comparison behind
+  **Compare two files**. It is shared with `kq`, which asks the same question
+  from the other end.
 - `eframe` and `egui` for the window, matching
   [OdyPatcher](https://github.com/oldrepublicwizard/OdyPatcher), the patcher that
   reads what this writes.
@@ -85,7 +107,8 @@ file does not take the program down.
 
 What is *not* checked is that a file written here from scratch installs
 correctly. That needs a patcher to run it against, and this repository does not
-depend on one.
+depend on one. The comparison behind **Compare two files** carries its own 49
+tests in `kotor-diff`; what is tested here is the merge into an open document.
 
 ## Status
 
