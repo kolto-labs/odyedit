@@ -184,7 +184,8 @@ mod tests {
 
     #[test]
     fn clearing_a_destination_removes_the_key() {
-        let mut ini = IniFile::parse(b"[CompileList]\nFile0=a.nss\n\n[a.nss]\n!Destination=modules\n");
+        let mut ini =
+            IniFile::parse(b"[CompileList]\nFile0=a.nss\n\n[a.nss]\n!Destination=modules\n");
         let mut entries = read(&ini);
         entries[0].destination.clear();
         write(&mut ini, &entries);

@@ -50,7 +50,11 @@ impl App {
         ui.add_space(4.0);
 
         if let Some(entry) = self.scripts.get_mut(self.selection.script) {
-            let folder = self.file.path.as_deref().map(kotor_formats::text::extract_file_path);
+            let folder = self
+                .file
+                .path
+                .as_deref()
+                .map(kotor_formats::text::extract_file_path);
             changed |= widgets::file_field(ui, "Source file", &mut entry.filename, || {
                 super::pick_any_file("Choose a script", folder)
             });

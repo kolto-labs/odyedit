@@ -145,10 +145,25 @@ impl Settings {
     pub fn write(&self, ini: &mut IniFile) {
         let defaults = Settings::default();
 
-        set_bool(ini, "InstallerMode", self.installer_mode, defaults.installer_mode);
+        set_bool(
+            ini,
+            "InstallerMode",
+            self.installer_mode,
+            defaults.installer_mode,
+        );
         set_bool(ini, "BackupFiles", self.backup_files, defaults.backup_files);
-        set_int(ini, "LogLevel", self.log_level.clamp(0, 4), defaults.log_level);
-        set_bool(ini, "PlaintextLog", self.plaintext_log, defaults.plaintext_log);
+        set_int(
+            ini,
+            "LogLevel",
+            self.log_level.clamp(0, 4),
+            defaults.log_level,
+        );
+        set_bool(
+            ini,
+            "PlaintextLog",
+            self.plaintext_log,
+            defaults.plaintext_log,
+        );
         set_text(ini, "ConfirmMessage", &self.confirm_message, "");
         set_text(
             ini,
@@ -169,12 +184,7 @@ impl Settings {
             self.lookup_game.setting(),
             defaults.lookup_game.setting(),
         );
-        set_text(
-            ini,
-            "ScriptCompilerFlags",
-            &self.script_compiler_flags,
-            "",
-        );
+        set_text(ini, "ScriptCompilerFlags", &self.script_compiler_flags, "");
         set_bool(
             ini,
             "SaveProcessedScripts",
@@ -314,11 +324,7 @@ fn write_required(ini: &mut IniFile, checks: &[RequiredCheck]) {
         };
         ini.write_string(SETTINGS, &format!("Required{suffix}"), &files.join(","));
         if !check.message.trim().is_empty() {
-            ini.write_string(
-                SETTINGS,
-                &format!("RequiredMsg{suffix}"),
-                &check.message,
-            );
+            ini.write_string(SETTINGS, &format!("RequiredMsg{suffix}"), &check.message);
         }
     }
 }

@@ -82,10 +82,16 @@ impl App {
             .on_hover_text("Turn this off to patch files the operator picks by hand.")
             .changed();
         changed |= ui
-            .checkbox(&mut self.settings.backup_files, "Back up files before changing them")
+            .checkbox(
+                &mut self.settings.backup_files,
+                "Back up files before changing them",
+            )
             .changed();
         changed |= ui
-            .checkbox(&mut self.settings.plaintext_log, "Write the log as plain text")
+            .checkbox(
+                &mut self.settings.plaintext_log,
+                "Write the log as plain text",
+            )
             .changed();
         changed |= ui
             .checkbox(

@@ -81,7 +81,8 @@ impl App {
             })
             .collect();
 
-        let picked = widgets::pick_list(ui, "install-folders", &rows, self.selection.install, 200.0);
+        let picked =
+            widgets::pick_list(ui, "install-folders", &rows, self.selection.install, 200.0);
         if picked.changed {
             self.selection.install = picked.index;
         }

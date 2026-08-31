@@ -140,9 +140,7 @@ impl App {
         );
 
         ui.add_space(6.0);
-        ui.label(
-            egui::RichText::new(format!("Written under [{}]", entry.section)).weak(),
-        );
+        ui.label(egui::RichText::new(format!("Written under [{}]", entry.section)).weak());
     }
 
     /// Add, remove or reorder a variant.

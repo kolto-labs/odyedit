@@ -114,12 +114,9 @@ impl App {
                     .path
                     .as_deref()
                     .map(kotor_formats::text::extract_file_path);
-                let Some(chosen) = super::save_file_dialog(
-                    "Save append file",
-                    &[],
-                    folder,
-                    DEFAULT_APPEND_FILE,
-                ) else {
+                let Some(chosen) =
+                    super::save_file_dialog("Save append file", &[], folder, DEFAULT_APPEND_FILE)
+                else {
                     return;
                 };
                 chosen
@@ -159,10 +156,7 @@ impl App {
                         "StrRef{}  →  line {}    {preview}",
                         mapping.token, mapping.index
                     );
-                    if ui
-                        .selectable_label(chosen == Some(row), label)
-                        .clicked()
-                    {
+                    if ui.selectable_label(chosen == Some(row), label).clicked() {
                         chosen = Some(row);
                     }
                 }

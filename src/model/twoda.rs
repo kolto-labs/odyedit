@@ -19,10 +19,15 @@
 //!
 //! A modifier section's keys are column names and its values are what to put
 //! there, mixed with a handful of keys that direct the change rather than fill a
-//! cell. Two of those directing keys have to come *first* — a `ChangeRow` that
-//! names its row after the columns it changes has nothing to change — so this
-//! module writes the keys of each modifier in a fixed order rather than in
-//! whatever order the panel happened to produce.
+//! cell.
+//!
+//! Order matters in two places, because a patcher walks the keys top to bottom.
+//! A `ChangeRow` that names its row below the columns it changes has nothing to
+//! change when it reaches them, and an `AddColumn` that names its column late
+//! has nowhere to put anything; both then do nothing at all, silently. A
+//! `2DAMEMORY` capture placed above every column key is read as a column name
+//! instead, and writes a cell nobody asked for. The writer fixes exactly those
+//! two things and leaves every other key where the author put it.
 //!
 //! Values are not always literal. `high()` means one more than the largest
 //! number already in the column, which is how a mod claims a free identifier
@@ -94,11 +99,7 @@ impl ModifierKind {
         .find(|kind| lower.starts_with(&kind.prefix().to_ascii_lowercase()))
     }
 
-    /// Keys that direct this kind of change, in the order they must be written.
-    ///
-    /// The first of these a modifier carries is the one that names its row, and
-    /// a patcher reads the keys top to bottom, so it has to be written above the
-    /// cells.
+    /// Keys that direct this kind of change rather than filling a cell.
     pub fn directing_keys(self) -> &'static [&'static str] {
         match self {
             ModifierKind::AddRow => &["ExclusiveColumn", "RowLabel"],
@@ -117,6 +118,23 @@ impl ModifierKind {
     /// Whether this kind must name a row before it can do anything.
     pub fn needs_a_row(self) -> bool {
         matches!(self, ModifierKind::ChangeRow | ModifierKind::CopyRow)
+    }
+
+    /// Keys that have to come before everything else in the section.
+    ///
+    /// A patcher walks a modifier's keys top to bottom, and for these it has
+    /// nothing to work with until the key arrives: a `ChangeRow` does not know
+    /// which row it is changing, an `AddColumn` does not know which column it is
+    /// filling. Both quietly do nothing in that case. Every other key can sit
+    /// wherever the author put it.
+    pub fn must_come_first(self) -> &'static [&'static str] {
+        match self {
+            ModifierKind::AddRow => &[],
+            ModifierKind::ChangeRow | ModifierKind::CopyRow => {
+                &["RowIndex", "RowLabel", "LabelIndex"]
+            }
+            ModifierKind::AddColumn => &["ColumnLabel"],
+        }
     }
 }
 
@@ -232,26 +250,50 @@ impl Modifier {
 
     /// The keys in the order they must be written.
     ///
-    /// Directing keys first, in their fixed order, then the cells in the order
-    /// the author put them, then the captures. A patcher applies the keys top to
-    /// bottom, so this ordering is the difference between a modifier that works
-    /// and one that silently does nothing.
+    /// The author's own order is kept, with two exceptions the patcher forces:
+    /// a key from [`must_come_first`](ModifierKind::must_come_first) is lifted
+    /// to the top, and a capture is pushed to the bottom. A capture placed above
+    /// every column key is read as a column name instead, which silently writes
+    /// a cell nobody asked for.
+    ///
+    /// Anything else stays where it was put. An editor that reflowed every
+    /// section it touched would bury one real change in a page of noise.
     fn ordered(&self) -> Vec<(String, String)> {
-        let mut out: Vec<(String, String)> = Vec::new();
+        // Where the first cell sits. A capture above it would be read as a
+        // column name; one below it is already fine and is left alone.
+        let first_cell = self
+            .entries
+            .iter()
+            .position(|(key, _)| !self.is_directing(key) && !is_capture(key));
 
-        for key in self.kind.directing_keys() {
-            if let Some(value) = self.directive(key) {
-                out.push((key.to_string(), value.to_string()));
-            }
-        }
-        for (key, value) in self.cells() {
-            out.push((key.to_string(), value.to_string()));
-        }
-        for (key, value) in self.captures() {
-            out.push((key.to_string(), value.to_string()));
-        }
+        let mut out: Vec<(usize, (String, String))> = self
+            .entries
+            .iter()
+            .enumerate()
+            .map(|(at, entry)| {
+                let (key, _) = entry;
+                let above_every_cell = match first_cell {
+                    Some(cell) => at < cell,
+                    None => true,
+                };
+                let rank = if self
+                    .kind
+                    .must_come_first()
+                    .iter()
+                    .any(|first| first.eq_ignore_ascii_case(key))
+                {
+                    0
+                } else if is_capture(key) && above_every_cell {
+                    2
+                } else {
+                    1
+                };
+                (rank, entry.clone())
+            })
+            .collect();
 
-        out
+        out.sort_by_key(|(rank, _)| *rank);
+        out.into_iter().map(|(_, entry)| entry).collect()
     }
 }
 
@@ -445,7 +487,10 @@ mod tests {
     fn cells_captures_and_directives_are_told_apart() {
         let entries = read(&IniFile::parse(SAMPLE));
         let add = &entries[0].modifiers[0];
-        assert_eq!(add.cells(), vec![("label", "MY_SPELL"), ("name", "StrRef0")]);
+        assert_eq!(
+            add.cells(),
+            vec![("label", "MY_SPELL"), ("name", "StrRef0")]
+        );
         assert_eq!(add.captures(), vec![("2DAMEMORY0", "RowIndex")]);
 
         let change = &entries[0].modifiers[1];
@@ -467,7 +512,10 @@ mod tests {
             ModifierKind::from_key("AddColumn0"),
             Some(ModifierKind::AddColumn)
         );
-        assert_eq!(ModifierKind::from_key("AddRow3"), Some(ModifierKind::AddRow));
+        assert_eq!(
+            ModifierKind::from_key("AddRow3"),
+            Some(ModifierKind::AddRow)
+        );
         assert_eq!(ModifierKind::from_key("Nonsense"), None);
     }
 
@@ -485,21 +533,21 @@ mod tests {
 
     #[test]
     fn captures_are_written_last() {
+        // A capture above every column key is read as a column name instead,
+        // which writes a cell nobody asked for.
         let mut modifier = Modifier::new("add", ModifierKind::AddRow);
-        modifier.entries.push(("2DAMEMORY0".to_string(), "RowIndex".to_string()));
+        modifier
+            .entries
+            .push(("2DAMEMORY0".to_string(), "RowIndex".to_string()));
         modifier.set_cell("label", "X");
-        modifier.set_directive("ExclusiveColumn", "label");
 
         let mut ini = IniFile::new();
         write_modifier(&mut ini, &modifier);
-        assert_eq!(
-            ini.read_section("add"),
-            vec!["ExclusiveColumn", "label", "2DAMEMORY0"]
-        );
+        assert_eq!(ini.read_section("add"), vec!["label", "2DAMEMORY0"]);
     }
 
     #[test]
-    fn add_column_directives_come_first_and_in_order() {
+    fn add_column_names_its_column_first() {
         let mut modifier = Modifier::new("newcol", ModifierKind::AddColumn);
         modifier.set_cell("i3", "yes");
         modifier.set_directive("DefaultValue", EMPTY_CELL);
@@ -507,9 +555,35 @@ mod tests {
 
         let mut ini = IniFile::new();
         write_modifier(&mut ini, &modifier);
+        // ColumnLabel is lifted; the other two keep the order they were given.
         assert_eq!(
             ini.read_section("newcol"),
-            vec!["ColumnLabel", "DefaultValue", "i3"]
+            vec!["ColumnLabel", "i3", "DefaultValue"]
+        );
+    }
+
+    #[test]
+    fn a_capture_already_below_a_cell_is_not_moved() {
+        let mut ini = IniFile::parse(
+            b"[2DAList]\nTable0=x.2da\n\n[x.2da]\nAddRow0=m\n\n[m]\nlabel=first\n2DAMEMORY1=RowIndex\nname=7777\n",
+        );
+        let entries = read(&ini);
+        write(&mut ini, &entries);
+        assert_eq!(ini.read_section("m"), vec!["label", "2DAMEMORY1", "name"]);
+    }
+
+    #[test]
+    fn keys_that_need_no_reordering_stay_where_the_author_put_them() {
+        // Only the keys a patcher cannot work without are moved. Reflowing the
+        // rest would bury one real change in a page of noise.
+        let mut ini = IniFile::parse(
+            b"[2DAList]\nTable0=x.2da\n\n[x.2da]\nAddRow0=m\n\n[m]\nExclusiveColumn=label\nlabel=first\nRowLabel=high()\nname=7777\n",
+        );
+        let entries = read(&ini);
+        write(&mut ini, &entries);
+        assert_eq!(
+            ini.read_section("m"),
+            vec!["ExclusiveColumn", "label", "RowLabel", "name"]
         );
     }
 

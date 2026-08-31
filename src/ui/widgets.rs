@@ -254,7 +254,11 @@ pub fn choice(
     ui.horizontal(|ui| {
         ui.label(label);
         egui::ComboBox::from_id_salt(id)
-            .selected_text(if value.is_empty() { "—" } else { value.as_str() })
+            .selected_text(if value.is_empty() {
+                "—"
+            } else {
+                value.as_str()
+            })
             .show_ui(ui, |ui| {
                 let known = options.iter().any(|o| o.eq_ignore_ascii_case(value));
                 if !known && !value.is_empty() {

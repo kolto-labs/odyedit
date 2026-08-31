@@ -255,7 +255,10 @@ mod tests {
     fn writing_a_list_renumbers_from_zero_and_keeps_directives() {
         let mut ini = IniFile::parse(b"[L]\n!Destination=override\nFile0=a\nFile1=b\nFile2=c\n");
         write_list(&mut ini, "L", "File", &["a".to_string(), "c".to_string()]);
-        assert_eq!(ini.read_section("L"), vec!["!Destination", "File0", "File1"]);
+        assert_eq!(
+            ini.read_section("L"),
+            vec!["!Destination", "File0", "File1"]
+        );
         assert_eq!(ini.read_string("L", "File1", ""), "c");
         assert_eq!(ini.read_string("L", "!Destination", ""), "override");
     }

@@ -79,7 +79,10 @@ pub fn write(ini: &mut IniFile, folders: &[InstallFolder]) {
 
     // A folder dropped from the list leaves its section behind otherwise.
     for section in existing {
-        if !folders.iter().any(|f| f.section.eq_ignore_ascii_case(&section)) {
+        if !folders
+            .iter()
+            .any(|f| f.section.eq_ignore_ascii_case(&section))
+        {
             ini.delete_section(&section);
         }
     }
@@ -119,7 +122,11 @@ pub fn unused_folder_section(ini: &IniFile) -> String {
 }
 
 /// Add a destination, returning the section name it was given.
-pub fn add_folder(ini: &mut IniFile, folders: &mut Vec<InstallFolder>, destination: &str) -> String {
+pub fn add_folder(
+    ini: &mut IniFile,
+    folders: &mut Vec<InstallFolder>,
+    destination: &str,
+) -> String {
     let section = unused_folder_section(ini);
     folders.push(InstallFolder {
         section: section.clone(),

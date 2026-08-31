@@ -82,7 +82,10 @@ pub fn write(ini: &mut IniFile, entries: &[SsfEntry]) {
     ini.replace_section_values(SSF_LIST, &pairs);
 
     for filename in existing {
-        if !entries.iter().any(|e| e.filename.eq_ignore_ascii_case(&filename)) {
+        if !entries
+            .iter()
+            .any(|e| e.filename.eq_ignore_ascii_case(&filename))
+        {
             ini.delete_section(&filename);
         }
     }

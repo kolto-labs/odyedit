@@ -252,7 +252,13 @@ mod tests {
         let mappings = read(&ini);
         assert_eq!(mappings.len(), 3);
         assert_eq!(mappings[0], TokenMapping { token: 0, index: 0 });
-        assert_eq!(mappings[2], TokenMapping { token: 12, index: 7 });
+        assert_eq!(
+            mappings[2],
+            TokenMapping {
+                token: 12,
+                index: 7
+            }
+        );
     }
 
     #[test]

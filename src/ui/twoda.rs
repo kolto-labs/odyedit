@@ -172,8 +172,7 @@ impl App {
                 modifier.set_directive("DefaultValue", EMPTY_CELL);
             }
             self.tables[self.selection.table].modifiers.push(modifier);
-            self.selection.modifier =
-                Some(self.tables[self.selection.table].modifiers.len() - 1);
+            self.selection.modifier = Some(self.tables[self.selection.table].modifiers.len() - 1);
             changed = true;
         }
 
@@ -204,7 +203,8 @@ impl App {
 
     /// The form for the chosen change.
     fn show_modifier_editor(&mut self, ui: &mut egui::Ui) -> bool {
-        let Some(table_index) = Some(self.selection.table).filter(|&i| i < self.tables.len()) else {
+        let Some(table_index) = Some(self.selection.table).filter(|&i| i < self.tables.len())
+        else {
             return false;
         };
         let Some(index) = self
@@ -302,7 +302,10 @@ fn show_directives(ui: &mut egui::Ui, modifier: &mut Modifier, columns: &[String
         ui.horizontal(|ui| {
             ui.label("Find the row by");
             for option in ["RowIndex", "RowLabel", "LabelIndex"] {
-                if ui.selectable_label(key == option, friendly(option)).clicked() {
+                if ui
+                    .selectable_label(key == option, friendly(option))
+                    .clicked()
+                {
                     key = option.to_string();
                 }
             }
@@ -322,7 +325,10 @@ fn show_directives(ui: &mut egui::Ui, modifier: &mut Modifier, columns: &[String
     }
 
     if matches!(kind, ModifierKind::AddRow | ModifierKind::CopyRow) {
-        let mut exclusive = modifier.directive("ExclusiveColumn").unwrap_or("").to_string();
+        let mut exclusive = modifier
+            .directive("ExclusiveColumn")
+            .unwrap_or("")
+            .to_string();
         let before = exclusive.clone();
         if columns.is_empty() {
             widgets::field(ui, "Skip if this column already matches", &mut exclusive);
@@ -469,9 +475,12 @@ fn replace_cells(modifier: &mut Modifier, pairs: &[(String, String)]) {
         .collect();
 
     modifier.entries = directives;
-    modifier
-        .entries
-        .extend(pairs.iter().filter(|(key, _)| !key.trim().is_empty()).cloned());
+    modifier.entries.extend(
+        pairs
+            .iter()
+            .filter(|(key, _)| !key.trim().is_empty())
+            .cloned(),
+    );
     modifier.entries.extend(captures);
 }
 
@@ -530,9 +539,12 @@ fn show_captures(ui: &mut egui::Ui, modifier: &mut Modifier) -> bool {
 /// Swap this modifier's captures for a new set, leaving everything else alone.
 fn replace_captures(modifier: &mut Modifier, pairs: &[(String, String)]) {
     modifier.entries.retain(|(key, _)| !twoda::is_capture(key));
-    modifier
-        .entries
-        .extend(pairs.iter().filter(|(key, _)| !key.trim().is_empty()).cloned());
+    modifier.entries.extend(
+        pairs
+            .iter()
+            .filter(|(key, _)| !key.trim().is_empty())
+            .cloned(),
+    );
 }
 
 /// A directing key's name in words rather than in the file's spelling.

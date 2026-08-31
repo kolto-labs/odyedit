@@ -260,7 +260,8 @@ impl IniFile {
         }
         // A blank line before the header keeps the file readable, but not at the
         // very top and not where one already separates the sections.
-        if !self.lines.is_empty() && !matches!(self.lines.last(), Some(Line::Verbatim(v)) if v.trim().is_empty())
+        if !self.lines.is_empty()
+            && !matches!(self.lines.last(), Some(Line::Verbatim(v)) if v.trim().is_empty())
         {
             self.lines.push(Line::Verbatim(String::new()));
         }
@@ -433,8 +434,7 @@ impl IniFile {
             })
             .collect();
 
-        self.lines
-            .splice(start..end, fresh.into_iter().chain(kept));
+        self.lines.splice(start..end, fresh.into_iter().chain(kept));
     }
 }
 
@@ -481,9 +481,7 @@ fn render(line: &Line) -> String {
     match line {
         Line::Verbatim(raw) => raw.clone(),
         Line::Section { raw, name } => raw.clone().unwrap_or_else(|| format!("[{name}]")),
-        Line::Entry { raw, key, value } => {
-            raw.clone().unwrap_or_else(|| format!("{key}={value}"))
-        }
+        Line::Entry { raw, key, value } => raw.clone().unwrap_or_else(|| format!("{key}={value}")),
     }
 }
 
@@ -687,7 +685,10 @@ Table1=feat.2da
     fn writing_an_existing_key_leaves_its_neighbours_alone() {
         let mut ini = IniFile::parse(b"[S]\r\nA=1\r\nB=2\r\nC=3\r\n");
         ini.write_string("S", "B", "changed");
-        assert_eq!(ini.to_bytes(), b"[S]\r\nA=1\r\nB=changed\r\nC=3\r\n".to_vec());
+        assert_eq!(
+            ini.to_bytes(),
+            b"[S]\r\nA=1\r\nB=changed\r\nC=3\r\n".to_vec()
+        );
     }
 
     #[test]

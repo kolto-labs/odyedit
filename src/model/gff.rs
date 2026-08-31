@@ -94,6 +94,14 @@ pub struct AddField {
     pub children: Vec<AddField>,
     /// Keys this editor does not recognise, carried through untouched.
     pub extra: Vec<(String, String)>,
+    /// True when this entry only points at a section already above it.
+    ///
+    /// Nothing stops `[a]` from adding `[b]` while `[b]` adds `[a]`. Such a file
+    /// is broken — the patcher warns and skips the branch — but the editor must
+    /// not quietly repair it by dropping the key. The reference is kept and
+    /// written back; the section it names is left to the entry that really owns
+    /// it, higher up the tree.
+    pub loops_back: bool,
 }
 
 /// One plain `path=value` change to a field already in the file.
@@ -154,15 +162,39 @@ fn read_changes(ini: &IniFile, section: &str) -> Vec<FieldChange> {
 
 /// Read the fields a section asks to create, following the nesting.
 fn read_additions(ini: &IniFile, section: &str) -> Vec<AddField> {
-    ini.read_section_values(section)
+    read_additions_inner(ini, section, &mut Vec::new())
+}
+
+/// Read the nested fields, refusing to walk into a section already on the branch.
+fn read_additions_inner(ini: &IniFile, section: &str, visiting: &mut Vec<String>) -> Vec<AddField> {
+    visiting.push(section.to_string());
+
+    let fields = ini
+        .read_section_values(section)
         .into_iter()
         .filter(|(key, value)| is_add_field_key(key) && !value.is_empty())
-        .map(|(_, target)| read_add_field(ini, &target))
-        .collect()
+        .map(|(_, target)| {
+            if visiting
+                .iter()
+                .any(|name| name.eq_ignore_ascii_case(&target))
+            {
+                AddField {
+                    section: target,
+                    loops_back: true,
+                    ..AddField::default()
+                }
+            } else {
+                read_add_field(ini, &target, visiting)
+            }
+        })
+        .collect();
+
+    visiting.pop();
+    fields
 }
 
 /// Read one field-creating section.
-fn read_add_field(ini: &IniFile, section: &str) -> AddField {
+fn read_add_field(ini: &IniFile, section: &str, visiting: &mut Vec<String>) -> AddField {
     let mut field = AddField {
         section: section.to_string(),
         field_type: ini.read_string(section, "FieldType", ""),
@@ -172,8 +204,9 @@ fn read_add_field(ini: &IniFile, section: &str) -> AddField {
         type_id: ini.read_string(section, "TypeId", ""),
         strref: ini.read_string(section, "StrRef", ""),
         languages: Vec::new(),
-        children: read_additions(ini, section),
+        children: read_additions_inner(ini, section, visiting),
         extra: Vec::new(),
+        loops_back: false,
     };
 
     for (key, value) in ini.read_section_values(section) {
@@ -264,6 +297,14 @@ fn section_names(fields: &[AddField]) -> Vec<String> {
     out
 }
 
+/// Write one field-creating section, unless it only points back up the tree.
+fn write_child(ini: &mut IniFile, field: &AddField) {
+    if field.loops_back {
+        return;
+    }
+    write_add_field(ini, field);
+}
+
 /// Write one file's section and every field-creating section it names.
 pub fn write_entry(ini: &mut IniFile, entry: &GffEntry) {
     let mut pairs: Vec<(String, String)> = ini
@@ -290,7 +331,7 @@ pub fn write_entry(ini: &mut IniFile, entry: &GffEntry) {
     }
 
     for field in &entry.additions {
-        write_add_field(ini, field);
+        write_child(ini, field);
     }
 }
 
@@ -307,14 +348,11 @@ pub fn write_add_field(ini: &mut IniFile, field: &AddField) {
     pairs.push(("Label".to_string(), field.label.clone()));
 
     if is_container(&field.field_type) {
-        // A struct needs its type number; a list does not.
-        if field.field_type.eq_ignore_ascii_case("Struct") {
-            let type_id = if field.type_id.trim().is_empty() {
-                "0".to_string()
-            } else {
-                field.type_id.clone()
-            };
-            pairs.push(("TypeId".to_string(), type_id));
+        // Only a struct carries a type number, and only when one was set. A
+        // patcher reads a missing TypeId as zero, so writing it out would add a
+        // line the author never had without changing what the mod does.
+        if field.field_type.eq_ignore_ascii_case("Struct") && !field.type_id.trim().is_empty() {
+            pairs.push(("TypeId".to_string(), field.type_id.clone()));
         }
     } else if field.field_type.eq_ignore_ascii_case("ExoLocString") {
         if !field.strref.trim().is_empty() {
@@ -336,7 +374,7 @@ pub fn write_add_field(ini: &mut IniFile, field: &AddField) {
     ini.replace_section_values(&field.section, &pairs);
 
     for child in &field.children {
-        write_add_field(ini, child);
+        write_child(ini, child);
     }
 }
 
@@ -419,7 +457,7 @@ mod tests {
     }
 
     #[test]
-    fn a_struct_with_no_type_id_gets_zero() {
+    fn a_struct_with_no_type_id_writes_no_key() {
         let mut ini = IniFile::new();
         write_add_field(
             &mut ini,
@@ -429,7 +467,7 @@ mod tests {
                 ..AddField::default()
             },
         );
-        assert_eq!(ini.read_string("s", "TypeId", ""), "0");
+        assert!(!ini.has_key("s", "TypeId"));
     }
 
     #[test]

@@ -137,7 +137,10 @@ pub fn write(ini: &mut IniFile, entries: &[Namespace]) {
     ini.replace_section_values(NAMESPACES, &pairs);
 
     for section in existing {
-        if !entries.iter().any(|e| e.section.eq_ignore_ascii_case(&section)) {
+        if !entries
+            .iter()
+            .any(|e| e.section.eq_ignore_ascii_case(&section))
+        {
             ini.delete_section(&section);
         }
     }
@@ -212,7 +215,9 @@ mod tests {
 
     #[test]
     fn a_blank_entry_value_means_the_default_section() {
-        let entries = read(&IniFile::parse(b"[Namespaces]\nNamespace0=\n\n[default]\nName=Only\n"));
+        let entries = read(&IniFile::parse(
+            b"[Namespaces]\nNamespace0=\n\n[default]\nName=Only\n",
+        ));
         assert_eq!(entries.len(), 1);
         assert_eq!(entries[0].section, "default");
         assert_eq!(entries[0].name, "Only");

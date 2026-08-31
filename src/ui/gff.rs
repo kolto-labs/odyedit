@@ -145,8 +145,10 @@ fn show_existing_fields(ui: &mut egui::Ui, entry: &mut GffEntry) -> bool {
 
     ui.strong("Fields to change");
     ui.label(
-        egui::RichText::new("The path names a field already in the file, such as PropertiesList\\0\\CostValue.")
-            .weak(),
+        egui::RichText::new(
+            "The path names a field already in the file, such as PropertiesList\\0\\CostValue.",
+        )
+        .weak(),
     );
     ui.add_space(4.0);
 
@@ -228,6 +230,19 @@ fn show_field(
     ini: &crate::ini::IniFile,
 ) -> bool {
     let mut changed = false;
+
+    // A reference that loops back up the tree is shown but not opened: the
+    // section it names is edited where it really belongs, higher up.
+    if field.loops_back {
+        ui.horizontal(|ui| {
+            ui.label(egui::RichText::new(format!("↩ points back at [{}]", field.section)).weak());
+            if ui.small_button("Remove").clicked() {
+                *remove = Some(path.clone());
+            }
+        });
+        return false;
+    }
+
     let title = if field.label.trim().is_empty() {
         format!("{}  [{}]", field.field_type, field.section)
     } else {
