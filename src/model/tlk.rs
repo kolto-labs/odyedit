@@ -29,7 +29,7 @@ use crate::model::TLK_LIST;
 pub const DEFAULT_APPEND_FILE: &str = "append.tlk";
 
 /// One token mapped to a line in the append file.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct TokenMapping {
     /// The number in `StrRef<n>`, which is how the rest of the file refers to it.
     pub token: u32,

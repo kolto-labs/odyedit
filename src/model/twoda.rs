@@ -84,17 +84,14 @@ impl ModifierKind {
     pub fn from_key(key: &str) -> Option<Self> {
         let lower = key.to_ascii_lowercase();
         // `AddRow` and `AddColumn` share a prefix, so the longer name is tried first.
-        for kind in [
+        [
             ModifierKind::AddColumn,
             ModifierKind::AddRow,
             ModifierKind::ChangeRow,
             ModifierKind::CopyRow,
-        ] {
-            if lower.starts_with(&kind.prefix().to_ascii_lowercase()) {
-                return Some(kind);
-            }
-        }
-        None
+        ]
+        .into_iter()
+        .find(|kind| lower.starts_with(&kind.prefix().to_ascii_lowercase()))
     }
 
     /// Keys that direct this kind of change, in the order they must be written.
@@ -540,7 +537,7 @@ mod tests {
     #[test]
     fn removing_a_modifier_takes_its_section() {
         let mut ini = IniFile::parse(SAMPLE);
-        let mut entries = read(&ini);
+        let entries = read(&ini);
         let mut table = entries[0].clone();
         remove_modifier(&mut ini, &mut table, 0);
         assert!(!ini.section_present("add_my_spell"));
