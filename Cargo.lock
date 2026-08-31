@@ -1284,8 +1284,8 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "kotor-diff"
-version = "0.1.0"
-source = "git+https://github.com/arrenkaetris/kotor-formats?tag=v0.1.1#123f7ecaa0cd9e87d1d2a537f3c288d098097af1"
+version = "0.2.0"
+source = "git+https://github.com/arrenkaetris/kotor-formats?tag=kotor-diff-v0.2.0#f991b0bbc254beb898484d7162de08ced92cc0b3"
 dependencies = [
  "kotor-formats",
 ]
@@ -1293,7 +1293,7 @@ dependencies = [
 [[package]]
 name = "kotor-formats"
 version = "0.1.1"
-source = "git+https://github.com/arrenkaetris/kotor-formats?tag=v0.1.1#123f7ecaa0cd9e87d1d2a537f3c288d098097af1"
+source = "git+https://github.com/arrenkaetris/kotor-formats?tag=kotor-diff-v0.2.0#f991b0bbc254beb898484d7162de08ced92cc0b3"
 
 [[package]]
 name = "libc"

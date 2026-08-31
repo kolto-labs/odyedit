@@ -23,8 +23,11 @@ default = ["gui"]
 gui = ["dep:eframe", "dep:egui", "dep:egui_extras", "dep:rfd"]
 
 [dependencies]
-kotor-formats = { git = "https://github.com/arrenkaetris/kotor-formats", tag = "v0.1.1" }
-kotor-diff = { git = "https://github.com/arrenkaetris/kotor-formats", tag = "v0.1.1" }
+# One tag for both: cargo resolves a git source once, so every dependency taken
+# from a repository has to name the same ref. kotor-diff-v0.2.0 is the newest,
+# and carries kotor-formats 0.1.1 alongside it.
+kotor-formats = { git = "https://github.com/arrenkaetris/kotor-formats", tag = "kotor-diff-v0.2.0" }
+kotor-diff = { git = "https://github.com/arrenkaetris/kotor-formats", tag = "kotor-diff-v0.2.0" }
 
 # To work against a local kotor-formats checkout instead, uncomment:
 # [patch."https://github.com/arrenkaetris/kotor-formats"]
