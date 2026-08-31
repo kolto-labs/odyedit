@@ -132,6 +132,18 @@ impl MergeReport {
 pub fn generate(base_path: &str, modified_path: &str) -> Result<Generated, String> {
     let name = kotor_formats::text::extract_file_name(modified_path);
     let extension = kotor_formats::text::extract_file_ext(modified_path).to_ascii_lowercase();
+    let base_extension = kotor_formats::text::extract_file_ext(base_path).to_ascii_lowercase();
+
+    // Two files of different kinds are not two versions of one file. Most such
+    // pairs fail to parse and say so, but two different structured formats both
+    // parse happily and produce instructions that patch one file using the
+    // differences of another.
+    if extension != base_extension {
+        return Err(format!(
+            "Those are different kinds of file: .{base_extension} and .{extension}. \
+             Pick the same file before and after an edit."
+        ));
+    }
 
     let mut changes = ChangesIni::new();
 
@@ -505,6 +517,14 @@ mod tests {
         assert!(!report.is_empty());
         assert!(report.summary().contains("dialog line"));
         assert_eq!(generated.appended[0].text, "two");
+    }
+
+    #[test]
+    fn two_different_kinds_of_file_are_refused() {
+        // Both parse as GFF, so nothing downstream would notice: the result
+        // would be instructions patching one item with another item's changes.
+        let error = generate("/nonexistent/a.uti", "/nonexistent/b.utc").unwrap_err();
+        assert!(error.contains("different kinds"));
     }
 
     #[test]

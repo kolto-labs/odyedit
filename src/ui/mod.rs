@@ -163,15 +163,7 @@ impl App {
     /// Called after opening a file, and after anything that rewrites the
     /// document wholesale.
     fn reload_from_file(&mut self) {
-        self.settings = Settings::read(&self.file.ini);
-        self.tokens = crate::model::tlk::read(&self.file.ini);
-        self.tables = crate::model::twoda::read(&self.file.ini);
-        self.gff = crate::model::gff::read(&self.file.ini);
-        self.scripts = crate::model::script::read(&self.file.ini);
-        self.installs = crate::model::install::read(&self.file.ini);
-        self.ssfs = crate::model::ssf::read(&self.file.ini);
-        self.selection = Selection::default();
-        self.rename_buffer.clear();
+        self.reload_panels();
 
         // The append file and the variants live beside the instruction file, so
         // they can only be found once it has a home.
@@ -183,6 +175,25 @@ impl App {
             .as_deref()
             .and_then(NamespaceFile::beside)
             .unwrap_or_default();
+    }
+
+    /// Refresh the panels from the document, leaving the side files alone.
+    ///
+    /// Separate from [`reload_from_file`](Self::reload_from_file) because that
+    /// one goes back to disk for the append table and the variants list. After
+    /// an edit that only touched the document — or worse, one that just built an
+    /// append table in memory — looking on disk again would replace what is held
+    /// with whatever happens to be there, or with nothing at all.
+    fn reload_panels(&mut self) {
+        self.settings = Settings::read(&self.file.ini);
+        self.tokens = crate::model::tlk::read(&self.file.ini);
+        self.tables = crate::model::twoda::read(&self.file.ini);
+        self.gff = crate::model::gff::read(&self.file.ini);
+        self.scripts = crate::model::script::read(&self.file.ini);
+        self.installs = crate::model::install::read(&self.file.ini);
+        self.ssfs = crate::model::ssf::read(&self.file.ini);
+        self.selection = Selection::default();
+        self.rename_buffer.clear();
     }
 
     /// Whether the open instruction file has changes not yet on disk.
@@ -391,7 +402,9 @@ impl App {
         }
 
         self.touch();
-        self.reload_from_file();
+        // Only the panels: the append table may exist solely in memory at this
+        // point, and looking on disk for it would throw it away.
+        self.reload_panels();
 
         let mut message = report.summary();
         for (from, to) in &report.renamed {
@@ -823,4 +836,59 @@ fn pick_any_file(title: &str, folder: Option<String>) -> Option<String> {
     dialog
         .pick_file()
         .map(|path| path.to_string_lossy().into_owned())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// An append table built in memory, as a comparison of two dialog tables
+    /// leaves it: no file on disk anywhere.
+    fn app_with_unsaved_dialog_lines() -> App {
+        let mut app = App::new();
+        let mut append = AppendFile::new();
+        append.append("a compared line", "").unwrap();
+        app.append = Some(append);
+        app
+    }
+
+    #[test]
+    fn refreshing_the_panels_keeps_an_append_table_that_is_only_in_memory() {
+        // Going back to disk here would find no append.tlk and replace the one
+        // just built with nothing, leaving the tokens pointing at no text.
+        let mut app = app_with_unsaved_dialog_lines();
+        app.reload_panels();
+
+        let append = app.append.as_ref().expect("the append table survived");
+        assert_eq!(append.entries().len(), 1);
+        assert_eq!(append.text(0), "a compared line");
+        assert!(app.anything_unsaved());
+    }
+
+    #[test]
+    fn refreshing_the_panels_keeps_unsaved_variants() {
+        let mut app = App::new();
+        app.namespaces
+            .entries
+            .push(crate::model::namespace::Namespace {
+                section: "full".to_string(),
+                name: "Full".to_string(),
+                ..Default::default()
+            });
+        app.namespaces.touch();
+
+        app.reload_panels();
+
+        assert_eq!(app.namespaces.entries.len(), 1);
+        assert!(app.namespaces.is_dirty());
+    }
+
+    #[test]
+    fn opening_a_file_does_go_back_to_disk_for_the_side_files() {
+        // The other half of the split: a fresh document must not keep the
+        // previous one's append table.
+        let mut app = app_with_unsaved_dialog_lines();
+        app.reload_from_file();
+        assert!(app.append.is_none());
+    }
 }
