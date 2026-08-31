@@ -57,6 +57,8 @@ pub struct NamespaceFile {
     pub path: Option<String>,
     /// The variants, in the order the file lists them.
     pub entries: Vec<Namespace>,
+    /// Whether there are changes not yet on disk.
+    dirty: bool,
 }
 
 impl NamespaceFile {
@@ -73,7 +75,21 @@ impl NamespaceFile {
             ini,
             path: Some(path.to_string()),
             entries,
+            dirty: false,
         })
+    }
+
+    /// Whether there are changes not yet on disk.
+    ///
+    /// This file is edited in the same window as the instruction file but saved
+    /// separately, so it has to answer for itself when the operator quits.
+    pub fn is_dirty(&self) -> bool {
+        self.dirty
+    }
+
+    /// Note that a variant changed.
+    pub fn touch(&mut self) {
+        self.dirty = true;
     }
 
     /// Open the namespaces file beside a mod, if the mod has one.
@@ -90,6 +106,7 @@ impl NamespaceFile {
         write(&mut self.ini, &self.entries);
         self.ini.save(path)?;
         self.path = Some(path.to_string());
+        self.dirty = false;
         Ok(())
     }
 

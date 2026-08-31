@@ -80,12 +80,38 @@ fn strref_token(key: &str) -> Option<u32> {
     rest.trim().parse::<u32>().ok()
 }
 
-/// Write the token mappings back, keeping any foreign keys ahead of them.
+/// Write the token mappings back, leaving every other key where it was.
+///
+/// The keys are rebuilt in the order the file already had them: a mapping still
+/// present keeps its place, one that is gone drops out, and a new one goes on
+/// the end. Keys this editor does not author are emitted exactly where they sat.
+///
+/// Sorting the foreign keys to the front would be easier and is harmless to the
+/// patcher this was checked against, which applies its TLK steps in a fixed
+/// order rather than the file's. But a `[TLKList]` can hold several dialects at
+/// once, and moving a key whose meaning this editor does not know is not a call
+/// it is in a position to make.
 pub fn write(ini: &mut IniFile, mappings: &[TokenMapping]) {
-    let mut pairs = foreign_keys(ini);
-    for mapping in mappings {
+    let mut remaining: Vec<&TokenMapping> = mappings.iter().collect();
+    let mut pairs: Vec<(String, String)> = Vec::new();
+
+    for (key, value) in ini.read_section_values(TLK_LIST) {
+        match strref_token(&key) {
+            None => pairs.push((key, value)),
+            Some(token) => {
+                if let Some(at) = remaining.iter().position(|m| m.token == token) {
+                    let mapping = remaining.remove(at);
+                    pairs.push((mapping.key(), mapping.index.to_string()));
+                }
+                // A token no longer in the list is dropped along with its key.
+            }
+        }
+    }
+
+    for mapping in remaining {
         pairs.push((mapping.key(), mapping.index.to_string()));
     }
+
     ini.replace_section_values(TLK_LIST, &pairs);
 }
 
@@ -274,6 +300,44 @@ mod tests {
         write(&mut ini, &mappings);
         assert_eq!(ini.read_string(TLK_LIST, "AppendFile0", ""), "extra.tlk");
         assert_eq!(ini.read_string(TLK_LIST, "StrRef0", ""), "3");
+    }
+
+    #[test]
+    fn a_write_keeps_every_key_where_the_file_had_it() {
+        // A section can hold several dialects at once. Sorting the ones this
+        // editor does not author to the front would reorder keys whose meaning
+        // it does not know.
+        let mut ini = IniFile::parse(
+            b"[TLKList]\nStrRef0=0\nAppendFile0=extra.tlk\nStrRef1=1\n!SourceFile=append.tlk\n",
+        );
+        let mappings = read(&ini);
+        write(&mut ini, &mappings);
+        assert_eq!(
+            ini.read_section(TLK_LIST),
+            vec!["StrRef0", "AppendFile0", "StrRef1", "!SourceFile"]
+        );
+    }
+
+    #[test]
+    fn a_removed_token_drops_out_without_moving_its_neighbours() {
+        let mut ini = IniFile::parse(b"[TLKList]\nStrRef0=0\nAppendFile0=extra.tlk\nStrRef1=1\n");
+        let mut mappings = read(&ini);
+        mappings.retain(|m| m.token != 0);
+        write(&mut ini, &mappings);
+        assert_eq!(ini.read_section(TLK_LIST), vec!["AppendFile0", "StrRef1"]);
+    }
+
+    #[test]
+    fn a_new_token_goes_on_the_end() {
+        let mut ini = IniFile::parse(b"[TLKList]\nStrRef0=0\nAppendFile0=extra.tlk\n");
+        let mut mappings = read(&ini);
+        add_mapping(&mut mappings, 9);
+        write(&mut ini, &mappings);
+        assert_eq!(
+            ini.read_section(TLK_LIST),
+            vec!["StrRef0", "AppendFile0", "StrRef1"]
+        );
+        assert_eq!(ini.read_string(TLK_LIST, "StrRef1", ""), "9");
     }
 
     #[test]

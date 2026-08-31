@@ -90,7 +90,7 @@ impl App {
     }
 
     /// Write the variants file, asking for a name if it does not have one.
-    fn save_namespaces(&mut self) {
+    pub(super) fn save_namespaces(&mut self) {
         let path = match self.namespaces.path.clone() {
             Some(path) => path,
             None => {
@@ -124,16 +124,20 @@ impl App {
             return;
         };
 
-        widgets::field(ui, "Name", &mut entry.name);
+        let mut changed = false;
+
+        changed |= widgets::field(ui, "Name", &mut entry.name);
         ui.label("Description");
-        ui.add(
-            egui::TextEdit::multiline(&mut entry.description)
-                .desired_rows(3)
-                .desired_width(f32::INFINITY),
-        );
-        widgets::field(ui, "Instruction file", &mut entry.ini_name);
-        widgets::field(ui, "Information file", &mut entry.info_name);
-        widgets::field(ui, "Data folder", &mut entry.data_path);
+        changed |= ui
+            .add(
+                egui::TextEdit::multiline(&mut entry.description)
+                    .desired_rows(3)
+                    .desired_width(f32::INFINITY),
+            )
+            .changed();
+        changed |= widgets::field(ui, "Instruction file", &mut entry.ini_name);
+        changed |= widgets::field(ui, "Information file", &mut entry.info_name);
+        changed |= widgets::field(ui, "Data folder", &mut entry.data_path);
         ui.label(
             egui::RichText::new("Left empty, the variant uses the mod's own tslpatchdata folder.")
                 .weak(),
@@ -141,10 +145,15 @@ impl App {
 
         ui.add_space(6.0);
         ui.label(egui::RichText::new(format!("Written under [{}]", entry.section)).weak());
+
+        if changed {
+            self.namespaces.touch();
+        }
     }
 
     /// Add, remove or reorder a variant.
     fn namespace_action(&mut self, action: ListAction) {
+        self.namespaces.touch();
         match action {
             ListAction::Add => {
                 let section =

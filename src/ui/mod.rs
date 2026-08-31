@@ -92,6 +92,10 @@ pub struct App {
     status: String,
     /// A question waiting on an answer.
     dialog: Option<Dialog>,
+    /// An action held up behind a problem the operator has to read first.
+    pending: Option<PendingAction>,
+    /// A section name being typed, before the rename is applied.
+    rename_buffer: String,
 }
 
 /// Which row each list panel has selected.
@@ -139,6 +143,8 @@ impl App {
             selection: Selection::default(),
             status: "Ready.".to_string(),
             dialog: None,
+            pending: None,
+            rename_buffer: String::new(),
         };
         app.reload_from_file();
         app
@@ -164,6 +170,7 @@ impl App {
         self.installs = crate::model::install::read(&self.file.ini);
         self.ssfs = crate::model::ssf::read(&self.file.ini);
         self.selection = Selection::default();
+        self.rename_buffer.clear();
 
         // The append file and the variants live beside the instruction file, so
         // they can only be found once it has a home.
@@ -177,9 +184,49 @@ impl App {
             .unwrap_or_default();
     }
 
-    /// Whether the open file has changes not yet on disk.
+    /// Whether the open instruction file has changes not yet on disk.
     pub fn is_dirty(&self) -> bool {
         self.file.is_dirty()
+    }
+
+    /// Whether anything at all is unsaved.
+    ///
+    /// A session edits up to three files — the instructions, the append table
+    /// they point into, and the variants list — and each is saved separately.
+    /// Asking only about the instruction file would let the other two be thrown
+    /// away without a word.
+    fn anything_unsaved(&self) -> bool {
+        self.file.is_dirty()
+            || self.append.as_ref().is_some_and(AppendFile::is_dirty)
+            || self.namespaces.is_dirty()
+    }
+
+    /// The names of whatever is unsaved, for the status line to show.
+    fn unsaved_names(&self) -> Vec<String> {
+        let mut names = Vec::new();
+        if self.file.is_dirty() {
+            names.push(self.file.display_name());
+        }
+        if self.append.as_ref().is_some_and(AppendFile::is_dirty) {
+            names.push(DEFAULT_APPEND_FILE.to_string());
+        }
+        if self.namespaces.is_dirty() {
+            names.push(crate::model::namespace::FILENAME.to_string());
+        }
+        names
+    }
+
+    /// Write every file that has changes. Reports what could not be written.
+    fn save_everything(&mut self) {
+        if self.file.is_dirty() || self.file.path.is_none() {
+            self.save_file();
+        }
+        if self.append.as_ref().is_some_and(AppendFile::is_dirty) {
+            self.save_append();
+        }
+        if self.namespaces.is_dirty() {
+            self.save_namespaces();
+        }
     }
 
     /// Note that the document changed.
@@ -290,7 +337,7 @@ impl App {
 
     /// Warn about unsaved changes. True when the caller should stop and wait.
     fn guard(&mut self, action: PendingAction) -> bool {
-        if !self.file.is_dirty() {
+        if !self.anything_unsaved() {
             return false;
         }
         self.dialog = Some(Dialog::Unsaved(action));
@@ -299,9 +346,11 @@ impl App {
 
     /// Carry out what an unsaved-changes warning was holding up.
     fn resume(&mut self, action: PendingAction, ctx: &egui::Context) {
-        // The file is being abandoned either way, so the warning must not fire
+        // Everything is being abandoned either way, so the warning must not fire
         // a second time for the same action.
         self.file = ChangesFile::new();
+        self.append = None;
+        self.namespaces = NamespaceFile::new();
         match action {
             PendingAction::New => {
                 self.reload_from_file();
@@ -415,8 +464,9 @@ impl App {
             ui.horizontal(|ui| {
                 ui.label(&self.status);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if self.file.is_dirty() {
-                        ui.label("Unsaved changes");
+                    let unsaved = self.unsaved_names();
+                    if !unsaved.is_empty() {
+                        ui.label(format!("Unsaved: {}", unsaved.join(", ")));
                     }
                 });
             });
@@ -465,20 +515,21 @@ impl App {
                     });
                 if keep {
                     self.dialog = Some(Dialog::Problem(message));
+                } else if let Some(action) = self.pending.take() {
+                    // Something was waiting on a save that did not happen.
+                    self.dialog = Some(Dialog::Unsaved(action));
                 }
             }
 
             Dialog::Unsaved(action) => {
+                let unsaved = self.unsaved_names().join(", ");
                 let mut choice: Option<UnsavedChoice> = None;
                 egui::Window::new("Save your changes?")
                     .collapsible(false)
                     .resizable(false)
                     .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
                     .show(ctx, |ui| {
-                        ui.label(format!(
-                            "{} has changes that are not on disk yet.",
-                            self.file.display_name()
-                        ));
+                        ui.label(format!("{unsaved} is not on disk yet."));
                         ui.add_space(8.0);
                         ui.horizontal(|ui| {
                             if ui.button("Save").clicked() {
@@ -495,11 +546,20 @@ impl App {
 
                 match choice {
                     Some(UnsavedChoice::Save) => {
-                        self.save_file();
-                        // A failed save leaves the file dirty, and abandoning it
-                        // then would lose exactly what the operator asked to keep.
-                        if self.file.is_dirty() {
-                            self.dialog = Some(Dialog::Unsaved(action));
+                        self.save_everything();
+                        if self.anything_unsaved() {
+                            // The save failed or was called off. Going ahead now
+                            // would lose exactly what was asked to be kept, so
+                            // the warning stays — but behind whatever the failure
+                            // put on screen, or the operator sees the same
+                            // question again with no idea why.
+                            match self.dialog.take() {
+                                Some(problem) => {
+                                    self.pending = Some(action);
+                                    self.dialog = Some(problem);
+                                }
+                                None => self.dialog = Some(Dialog::Unsaved(action)),
+                            }
                         } else {
                             self.resume(action, ctx);
                         }

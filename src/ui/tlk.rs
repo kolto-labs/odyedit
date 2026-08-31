@@ -101,7 +101,7 @@ impl App {
     }
 
     /// Write the append file, asking for a name if it does not have one.
-    fn save_append(&mut self) {
+    pub(super) fn save_append(&mut self) {
         let Some(append) = self.append.as_mut() else {
             return;
         };

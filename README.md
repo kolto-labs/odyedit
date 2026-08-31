@@ -35,8 +35,10 @@ spacing and line endings all survive, and an edit rewrites only the lines it
 actually changes. Mod authors keep these files in version control; a save that
 reflowed the whole file would bury one real change in a thousand cosmetic ones.
 
-Keys this editor does not recognise are carried through untouched rather than
-dropped, so a file written by a newer patcher survives a round trip.
+Keys this editor does not recognise keep both their values and their places, so
+a file written by a newer patcher survives a round trip. A `[TLKList]` can hold
+several dialects at once, and moving a key whose meaning is unknown is not a
+call this editor is in a position to make.
 
 Two things are not left alone, because a patcher would otherwise read them
 wrongly. A row identifier is lifted above the cells it applies to, and a
@@ -75,15 +77,25 @@ cargo test
 ```
 
 The round-trip suite runs over 84 real instruction files, taken from
-OdyPatcher's own test suite, and checks three things of each: that opening and
+OdyPatcher's own test suite, and checks five things of each: that opening and
 saving changes nothing, that writing every section back twice gives the same
-file as writing it once, and that a write never loses what the editor read.
+file as writing it once, that a write never loses what the editor read, that no
+key moves to a place the editor did not have to move it, and that opening the
+file does not take the program down.
+
+What is *not* checked is that a file written here from scratch installs
+correctly. That needs a patcher to run it against, and this repository does not
+depend on one.
 
 ## Status
 
 Early. Every section has a working panel. `HACKList`, which patches compiled
 scripts byte by byte, has no panel yet — files carrying one still load, save and
 keep it intact.
+
+The window has had no interactive testing. Its logic is covered by tests, and it
+opens all 84 corpus files without falling over, but nobody has yet sat in front
+of it and clicked through a real editing session.
 
 ## License
 

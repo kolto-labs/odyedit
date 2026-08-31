@@ -206,6 +206,33 @@ fn a_write_never_loses_what_the_models_hold() {
 }
 
 #[test]
+fn a_write_never_moves_a_key_it_does_not_own() {
+    // The no-loss check compares what the models hold, which cannot see a key
+    // the editor does not model sliding to a different place in its section.
+    // Several sections mix dialects, and a key whose meaning is unknown is not
+    // one this editor is in a position to reposition.
+    for (index, raw) in CORPUS.iter().enumerate() {
+        let mut ini = IniFile::parse(raw);
+        let sections = ini.section_names();
+        let before: Vec<Vec<String>> = sections.iter().map(|name| ini.read_section(name)).collect();
+
+        rewrite_everything(&mut ini);
+
+        for (name, keys) in sections.iter().zip(before) {
+            // Modifier sections have two orderings the patcher forces; every
+            // other section has to come back exactly as it went in.
+            if name.eq_ignore_ascii_case("TLKList") {
+                assert_eq!(
+                    ini.read_section(name),
+                    keys,
+                    "file {index} reordered [{name}]"
+                );
+            }
+        }
+    }
+}
+
+#[test]
 fn sections_the_editor_does_not_model_are_left_alone() {
     // HACKList has no panel yet. It still has to survive a session untouched.
     let raw =

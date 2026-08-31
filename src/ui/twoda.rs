@@ -96,6 +96,7 @@ impl App {
         if picked.changed {
             self.selection.table = picked.index;
             self.selection.modifier = None;
+            self.rename_buffer.clear();
         }
 
         ui.add_space(6.0);
@@ -194,6 +195,9 @@ impl App {
                 for (row, label) in rows.iter().enumerate() {
                     if ui.selectable_label(row == selected, label).clicked() {
                         self.selection.modifier = Some(row);
+                        // A half-typed name does not follow the operator to the
+                        // next change they look at.
+                        self.rename_buffer.clear();
                     }
                 }
             });
@@ -216,27 +220,58 @@ impl App {
             return false;
         };
 
-        // The column names come from the table file when it can be found, so
-        // they are read before the modifier is borrowed for editing.
+        // The column names come from the table file when it can be found, and
+        // the rename box needs the document, so both are handled before the
+        // modifier itself is borrowed for editing.
         let columns = self.columns_for(table_index);
-        let modifier = &mut self.tables[table_index].modifiers[index];
-        let kind = modifier.kind;
+        let kind = self.tables[table_index].modifiers[index].kind;
+        let old = self.tables[table_index].modifiers[index].section.clone();
         let mut changed = false;
 
         ui.horizontal(|ui| {
             ui.strong(kind.title());
-            ui.label(egui::RichText::new(format!("written under [{}]", modifier.section)).weak());
+            ui.label(egui::RichText::new(format!("written under [{old}]")).weak());
         });
         ui.add_space(4.0);
 
-        let mut section = modifier.section.clone();
+        let mut section = if self.rename_buffer.is_empty() {
+            old.clone()
+        } else {
+            self.rename_buffer.clone()
+        };
+
         if widgets::field(ui, "Name", &mut section) {
-            // Renaming means moving the section, which the writer does by
-            // deleting the old one and creating the new.
-            self.file.ini.delete_section(&modifier.section);
-            modifier.section = section;
+            self.rename_buffer = section;
+        }
+
+        // A rename is only applied once the operator is done typing. Renaming on
+        // every keystroke would move the section through every half-typed name
+        // along the way, and each of those could land on one already in use.
+        let typed = self.rename_buffer.trim().to_string();
+        let renaming = !typed.is_empty() && typed != old;
+        let clashes = renaming && self.file.ini.section_present(&typed);
+
+        if clashes {
+            ui.label(
+                egui::RichText::new(format!("[{typed}] is already used. Pick another name."))
+                    .weak(),
+            );
+        }
+
+        if ui
+            .add_enabled(renaming && !clashes, egui::Button::new("Rename"))
+            .clicked()
+        {
+            // Renaming in place keeps the section where it sits in the file. The
+            // writer would otherwise delete it and append the new one at the
+            // bottom, turning a one-field edit into a whole-file diff.
+            self.file.ini.rename_section(&old, &typed);
+            self.tables[table_index].modifiers[index].section = typed;
+            self.rename_buffer.clear();
             changed = true;
         }
+
+        let modifier = &mut self.tables[table_index].modifiers[index];
 
         changed |= show_directives(ui, modifier, &columns);
 
