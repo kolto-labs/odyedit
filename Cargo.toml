@@ -23,12 +23,16 @@ default = ["gui"]
 gui = ["dep:eframe", "dep:egui", "dep:egui_extras", "dep:rfd"]
 
 [dependencies]
-# Path deps while the trees sit side by side. Release builds pin a git tag,
-# once one carries kotor-diff — v0.1.0 predates it:
-# kotor-formats = { git = "https://github.com/arrenkaetris/kotor-formats", tag = "vX.Y.Z" }
-# kotor-diff = { git = "https://github.com/arrenkaetris/kotor-formats", tag = "vX.Y.Z" }
-kotor-formats = { path = "../kotor-formats/crates/kotor-formats" }
-kotor-diff = { path = "../kotor-formats/crates/kotor-diff" }
+# Pinned to the commit that adds kotor-diff, because no tag carries that crate
+# yet. A commit does not move, so a fresh clone of this repo alone builds; swap
+# both for a tag once arrenkaetris/kotor-formats#1 is merged and released.
+kotor-formats = { git = "https://github.com/arrenkaetris/kotor-formats", rev = "999a0b52b5867ab41b2cbb8c1b1a40bcaf695cb0" }
+kotor-diff = { git = "https://github.com/arrenkaetris/kotor-formats", rev = "999a0b52b5867ab41b2cbb8c1b1a40bcaf695cb0" }
+
+# To work against a local kotor-formats checkout instead, uncomment:
+# [patch."https://github.com/arrenkaetris/kotor-formats"]
+# kotor-formats = { path = "../kotor-formats/crates/kotor-formats" }
+# kotor-diff = { path = "../kotor-formats/crates/kotor-diff" }
 
 eframe = { version = "0.32", optional = true, default-features = false, features = [
     "glow",
