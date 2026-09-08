@@ -84,7 +84,7 @@ odyedit path/to/changes.ini
 
 ## Depends on
 
-- [`kotor-formats`](https://github.com/arrenkaetris/kotor-formats) for the game
+- [`kotor-formats`](https://github.com/holowan-biolabs/kotor-formats) for the game
   file formats — GFF, 2DA, TLK, SSF — and for byte-exact Latin-1 text.
 - `kotor-diff`, from the same repository, for the comparison behind
   **Compare two files**. It is shared with `kq`, which asks the same question
