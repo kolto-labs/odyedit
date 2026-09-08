@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/holowan-biolabs/odyedit/compare/v0.2.0...v0.3.0) (2026-09-08)
+
+
+### Features
+
+* write 2DAMEMORY references instead of literal indices ([1ef82ce](https://github.com/holowan-biolabs/odyedit/commit/1ef82ce672993a17f34c275c1bf195b4ba4e7f30))
+
 ## [0.2.0](https://github.com/holowan-biolabs/odyedit/compare/v0.1.0...v0.2.0) (2026-08-31)
 
 
