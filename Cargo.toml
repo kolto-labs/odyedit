@@ -6,7 +6,7 @@ rust-version = "1.77"
 description = "Editor for the changes.ini files that drive KotOR mod installers"
 license = "MIT"
 readme = "README.md"
-repository = "https://github.com/holowan-biolabs/odyedit"
+repository = "https://github.com/kolto-labs/odyedit"
 keywords = ["kotor", "modding", "tslpatcher", "ini", "editor"]
 categories = ["game-development", "gui"]
 
@@ -25,11 +25,11 @@ gui = ["dep:eframe", "dep:egui", "dep:egui_extras", "dep:rfd"]
 [dependencies]
 # One tag for both: cargo resolves a git source once, so every dependency taken
 # from a repository has to name the same ref.
-kotor-formats = { git = "https://github.com/holowan-biolabs/kotor-formats", tag = "v0.1.0" }
-kotor-diff = { git = "https://github.com/holowan-biolabs/kotor-formats", tag = "v0.1.0" }
+kotor-formats = { git = "https://github.com/kolto-labs/kotor-formats", tag = "v0.1.0" }
+kotor-diff = { git = "https://github.com/kolto-labs/kotor-formats", tag = "v0.1.0" }
 
 # To work against a local kotor-formats checkout instead, uncomment:
-# [patch."https://github.com/holowan-biolabs/kotor-formats"]
+# [patch."https://github.com/kolto-labs/kotor-formats"]
 # kotor-formats = { path = "../kotor-formats/crates/kotor-formats" }
 # kotor-diff = { path = "../kotor-formats/crates/kotor-diff" }
 
